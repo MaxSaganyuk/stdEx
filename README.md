@@ -26,11 +26,11 @@ std::cout << bst << '\n'; // result: 1000000000
 Allows to set and use default value when nonexistent one has been chosen
 ```cpp
 stdEx::map<int, std::string> m;
-b[0] = "zero";
-b.SetDefaultValue("default");
-std::cout << b[0] << '\n'; // result: zero
-std::cout << b[134] << '\n'; // result: default
-std::cout << b[13] << '\n'; // result: default
+m[0] = "zero";
+m.SetDefaultValue("default");
+std::cout << m[0] << '\n'; // result: zero
+std::cout << m[134] << '\n'; // result: default
+std::cout << m[13] << '\n'; // result: default
 ```
 
 ## stdEx::multimap and stdEx::unordered_multimap 
