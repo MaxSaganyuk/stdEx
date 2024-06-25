@@ -38,17 +38,22 @@ Allows to get vector of all corresponding values by key using [] operator from y
 
 Result:
 ```cpp
-stdEx::multimap<int, std::string> a;
-a.insert({ 1, "one" });
-a.insert({ 1, "uno" });
-std::vector<std::string> q = a[1];
-for(const auto& i : q)
-{
-    std::cout << i << '\n';
-}
-/*
-    result: 
-    one
-    uno
+	std::string q = "2";
+	stdEx::ValWithBackup<std::string> a(q);
+	q = "3";
+	std::cout << a.Get() << '\n';
+	a.Set("5");
+	std::cout << a.Get() << '\n';
+```
+
+## stdEx::ValWithBackup
+A template class which holds data and backup reference. Allows to make sure that specific reference to some value is used untill we have set actual data. Useful in situations where we have to have a general default value until we set a concrete one
+
+	std::string q = "2"; // default data
+	stdEx::ValWithBackup<std::string> a(q); 
+	q = "3"; // default data has been changed
+	std::cout << a.Get() << '\n'; // yields 3, since it refs "default" data address
+	a.Set("5"); // now we have concrete data, our own
+	std::cout << a.Get() << '\n'; // yields 5
 */
 ```
