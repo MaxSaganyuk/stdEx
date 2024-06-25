@@ -1,3 +1,8 @@
+#ifndef UTILITYEX
+#define UTILITYEX
+
+#include <utility>
+
 #if __cplusplus >= 201703L || _HAS_CXX17
 #include <optional>
 #endif
@@ -58,3 +63,5 @@ namespace stdEx
 		}
 	};
 }
+
+#endif
