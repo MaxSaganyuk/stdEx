@@ -56,10 +56,11 @@ for(const auto& i : q)
 ## stdEx::ValWithBackup
 A template class which holds data and backup reference. Allows to make sure that specific reference to some value is used untill we have set actual version. Useful in situations where we have to have a general default value until we set a concrete one
 
+```cpp
 std::string q = "2"; // default data
 stdEx::ValWithBackup<std::string> a(q); 
 q = "3"; // default data has been changed
 std::cout << a.Get() << '\n'; // yields 3, since it refs "default" data address
 a.Set("5"); // now we have concrete data, our own
 std::cout << a.Get() << '\n'; // yields 5
-*/
+```
