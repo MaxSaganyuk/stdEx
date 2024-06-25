@@ -25,7 +25,7 @@ namespace stdEx
 			PseudoOptional()
 				: val(Type{}), check(false) {}
 
-			bool has_value()
+			bool has_value() const
 			{
 				return check;
 			}
@@ -57,7 +57,7 @@ namespace stdEx
 			this->value = std::move(value);
 		}
 
-		Type Get()
+		Type Get() const
 		{
 			return value.has_value() ? value.value() : backup;
 		}
