@@ -30,7 +30,7 @@ namespace stdEx
 				return check;
 			}
 
-			Type& value()
+			Type value() const
 			{
 				return val;
 			}
@@ -42,15 +42,26 @@ namespace stdEx
 
 				return *this;
 			}
+
+			PseudoOptional& operator=(const PseudoOptional& pseudoOpt)
+			{
+				val = pseudoOpt.val;
+				check = pseudoOpt.check;
+
+				return *this;
+			}
 		};
 
 		PseudoOptional<Type> value;
 #endif
-		Type& backup;
+		Type* backup;
 
 	public:
 		ValWithBackup(Type& backup)
-			: backup(backup) {}
+			: backup(&backup) {}
+
+		ValWithBackup()
+			: backup(nullptr) {}
 
 		void Set(Type&& value)
 		{
@@ -59,7 +70,26 @@ namespace stdEx
 
 		Type Get() const
 		{
-			return value.has_value() ? value.value() : backup;
+			assert(backup && "Backup value is nullptr");
+			return value.has_value() ? value.value() : *backup;
+		}
+
+		void ResetBackup(Type& backup)
+		{
+			this->backup = &backup;
+		}
+
+		bool HasValue() const
+		{
+			return value.has_value();
+		}
+
+		ValWithBackup& operator=(const ValWithBackup& valWb)
+		{
+			value = valWb.value;
+			backup = valWb.backup;
+
+			return *this;
 		}
 	};
 }
