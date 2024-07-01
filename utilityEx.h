@@ -1,6 +1,7 @@
 #ifndef UTILITYEX
 #define UTILITYEX
 
+#include <cassert>
 #include <utility>
 
 #if __cplusplus >= 201703L || _HAS_CXX17
@@ -57,26 +58,21 @@ namespace stdEx
 		Type* backup;
 
 	public:
-		ValWithBackup(Type& backup)
-			: backup(&backup) {}
-
-		ValWithBackup()
-			: backup(nullptr) {}
-
-		void Set(Type&& value)
+		void ResetValue()
 		{
-			this->value = std::move(value);
+#if __cplusplus >= 201703L || _HAS_CXX17
+			this->value = std::optional<Type>();
+#else
+			this->value = PseudoOptional<Type>();
+#endif
 		}
 
-		Type Get() const
-		{
-			assert(backup && "Backup value is nullptr");
-			return value.has_value() ? value.value() : *backup;
-		}
+		ValWithBackup(Type* backup = nullptr)
+			: backup(backup) {}
 
-		void ResetBackup(Type& backup)
+		void ResetBackup(Type* backup = nullptr)
 		{
-			this->backup = &backup;
+			this->backup = backup;
 		}
 
 		bool HasValue() const
@@ -90,6 +86,19 @@ namespace stdEx
 			backup = valWb.backup;
 
 			return *this;
+		}
+
+		ValWithBackup& operator=(Type&& value)
+		{
+			this->value = std::move(value);
+
+			return *this;
+		}
+
+		operator Type() const
+		{
+			assert(backup && "Backup value is nullptr");
+			return value.has_value() ? value.value() : *backup;
 		}
 	};
 }
