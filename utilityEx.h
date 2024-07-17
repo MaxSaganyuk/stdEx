@@ -10,6 +10,65 @@
 
 namespace stdEx
 {
+#if __cplusplus >= 202002L || _HAS_CXX20
+	namespace _stdEx
+	{
+		template<typename MArray, size_t rank, size_t n>
+		constexpr void GetExtent(std::array<size_t, rank>& extent)
+		{
+			extent[n] = std::extent_v<MArray, n>;
+
+			if constexpr (n + 1 < rank)
+			{
+				GetExtent<MArray, rank, n + 1>(extent);
+			}
+		}
+
+		template<typename MArray>
+		constexpr auto GetDimentionExtent()
+		{
+			constexpr size_t rank = std::rank_v<MArray>;
+			std::array<size_t, rank> extent;
+
+			GetExtent<MArray, rank, 0>(extent);
+
+			return extent;
+		}
+
+		template<typename MArray, size_t rank, size_t n>
+		void PrintNDimention(MArray& mArray, std::array<size_t, rank> extent)
+		{
+			for (size_t i = 0; i < extent[n]; ++i)
+			{
+				if constexpr (n + 1 < rank)
+				{
+					std::cout << '{';
+					PrintNDimention<std::remove_extent_t<MArray>, rank, n + 1>(mArray[i], extent);
+					std::cout << '}';
+				}
+				else
+				{
+					std::cout << mArray[i];
+					if (i < extent[n] - 1)
+					{
+						std::cout << ' ';
+					}
+				}
+			}
+		}
+	}
+
+	template<typename MArray>
+	constexpr void PrintMArray(MArray& mArray)
+	{
+		using namespace _stdEx;
+
+		constexpr auto extent = GetDimentionExtent<MArray>();
+
+		PrintNDimention<MArray, extent.size(), 0>(mArray, extent);
+	}
+#endif
+
 	template<typename Type>
 	class ValWithBackup
 	{
