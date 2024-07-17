@@ -68,17 +68,17 @@ std::cout << a.Get() << '\n'; // yields 5
 ## stdEx::PrintMArray
 A function template that prints multidimentional arrays with any amount of dimentions and printable types
 ```cpp
-	int a[2][2][3];
+int a[2][2][3];
+{
 	{
-		{
-			{0, 1, 2},
-			{3, 4, 5}
-		},
-		{
-			{6, 7, 8},
-			{9, 10, 11}
-		}
-	};
+		{0, 1, 2},
+		{3, 4, 5}
+	},
+	{
+		{6, 7, 8},
+		{9, 10, 11}
+	}
+};
 
-	stdEx::PrintMArray(a); // result (printed on the screen) {{0 1 2}{3 4 5}}{{6 7 8}{9 10 11}}
+stdEx::PrintMArray(a); // result (printed on the screen) {{0 1 2}{3 4 5}}{{6 7 8}{9 10 11}}
 ```
