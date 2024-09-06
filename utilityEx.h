@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <utility>
+#include <atomic>
 
 #if __cplusplus >= 201703L || _HAS_CXX17
 #include <optional>
@@ -68,7 +69,6 @@ namespace stdEx
 		PrintNDimention<MArray, extent.size(), 0>(mArray, extent);
 	}
 #endif
-
 	template<typename Type>
 	class ValWithBackup
 	{
@@ -160,6 +160,140 @@ namespace stdEx
 			return value.has_value() ? value.value() : *backup;
 		}
 	};
-}
 
+
+	enum class ObjectCounterType
+	{
+		General,
+		Stack,
+		Heap
+	};
+
+	template<typename Type>
+	class ObjectCounter
+	{
+	private:
+
+		struct ObjectCounterInfo
+		{
+			size_t created;
+			size_t active;
+
+			ObjectCounterInfo& operator++()
+			{
+				++created;
+				++active;
+
+				return *this;
+			}
+		};
+
+		struct ObjectCounterStorage
+		{
+			ObjectCounterInfo generalCounter;
+			ObjectCounterInfo stackCounter;
+			ObjectCounterInfo heapCounter;
+		};
+
+		static ObjectCounterStorage allThreadStorage;
+		static thread_local ObjectCounterStorage localThreadStorage;
+
+		static void UpdateLocalThreadStorage()
+		{
+			localThreadStorage = allThreadStorage;
+		}
+
+		static bool stackCheck;
+
+		static ObjectCounterInfo& GetCorrentStorageAndInfo(ObjectCounterType objType, bool localThread)
+		{
+			return GetCorrectInfo(objType, localThread ? localThreadStorage : allThreadStorage);
+		}
+
+		static ObjectCounterInfo& GetCorrectInfo(ObjectCounterType objType, ObjectCounterStorage& objStorage)
+		{
+			switch (objType)
+			{
+			case ObjectCounterType::General:
+				return objStorage.generalCounter;
+			case ObjectCounterType::Stack:
+				return objStorage.stackCounter;
+			case ObjectCounterType::Heap:
+				return objStorage.heapCounter;
+			default:
+				assert(false && "Unreachable");
+			}
+		}
+
+		ObjectCounter(std::nullptr_t) {}
+
+	public:
+
+		static size_t GetCreatedObjAmount(ObjectCounterType objType, bool localThread = false)
+		{
+			return GetCorrentStorageAndInfo(objType, localThread).created;
+		}
+
+		static size_t GetActiveObjAmount(ObjectCounterType objType, bool localThread = false)
+		{
+			return GetCorrentStorageAndInfo(objType, localThread).active;
+		}
+
+		ObjectCounter()
+		{
+			++allThreadStorage.generalCounter;
+
+			if (stackCheck)
+			{
+				++allThreadStorage.stackCounter;
+			}
+
+			stackCheck = true;
+
+			UpdateLocalThreadStorage();
+		}
+
+		ObjectCounter(const ObjectCounter&)
+			: ObjectCounter() {}
+
+		void* operator new(size_t amount)
+		{
+			stackCheck = false;
+			++allThreadStorage.heapCounter;
+			UpdateLocalThreadStorage();
+			return ::new ObjectCounter(nullptr);
+		}
+
+		void operator delete(void* pointer)
+		{
+			++allThreadStorage.stackCounter.active;
+			--allThreadStorage.heapCounter.active;
+
+			UpdateLocalThreadStorage();
+
+			::delete(pointer);
+		}
+
+	protected:
+		virtual ~ObjectCounter()
+		{
+			--allThreadStorage.generalCounter.active;
+			--allThreadStorage.stackCounter.active;
+
+			UpdateLocalThreadStorage();
+		}
+	};
+
+	template<typename Type>
+        typename ObjectCounter<Type>::ObjectCounterStorage ObjectCounter<Type>::allThreadStorage = { 0, 0, 0 };
+
+	template<typename Type>
+	typename thread_local ObjectCounter<Type>::ObjectCounterStorage ObjectCounter<Type>::localThreadStorage = { 0, 0, 0 };
+
+	template<typename Type>
+	bool ObjectCounter<Type>::stackCheck = true;
+
+#define TrackedClass(className) class className : public stdEx::ObjectCounter<className>
+
+}
 #endif

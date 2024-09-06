@@ -82,3 +82,85 @@ int a[2][2][3];
 
 stdEx::PrintMArray(a); // result (printed on the screen) {{0 1 2}{3 4 5}}{{6 7 8}{9 10 11}}
 ```
+
+## stdEx::ObjectCounter
+
+A class template for tracking amount of created and active objects of specific class (in all and current threads separatly)
+```cpp
+// TrackedClass macro is short for CRTP "class Test : public ObjectCounter<Test>"
+TrackedClass(Test)
+{
+public:
+	Test() {}
+};
+
+void PrintObjAmounts()
+{
+	using namespace stdEx;
+
+	const std::array<std::string, 4> objectTypes
+	{
+		"General     ",
+		"Stack       ",
+		"Heap        ",
+	};
+
+	for (int i = 0; i < 3; ++i)
+	{
+		ObjectCounterType type = static_cast<ObjectCounterType>(i);
+		std::cout << objectTypes[i] 
+			      << ObjectCounter<Test>::GetCreatedObjAmount(type)       << ' ' 
+			      << ObjectCounter<Test>::GetActiveObjAmount (type)       << ' ' 
+			      << ObjectCounter<Test>::GetCreatedObjAmount(type, true) << ' '
+			      << ObjectCounter<Test>::GetActiveObjAmount (type, true) << '\n';
+	}
+
+	std::cout << '\n';
+}
+
+void OtherThreadTest()
+{
+	PrintObjAmounts();
+}
+
+struct A
+{
+	int a;
+	int b;
+};
+
+int main()
+{
+	Test* tt;
+	{
+		Test t;
+		PrintObjAmounts();
+		tt = new Test;
+	}
+	PrintObjAmounts();
+	delete tt;
+	PrintObjAmounts();
+	std::thread otherThread(OtherThreadTest);
+	otherThread.join();
+}
+```
+
+Result: (Created/all threads | Active/all threads | Created|current thread | Active/current threads )
+
+```cpp
+General     1 1 1 1
+Stack       1 1 1 1
+Heap        0 0 0 0
+
+General     2 1 2 1
+Stack       1 0 1 0
+Heap        1 1 1 1
+
+General     2 0 2 0
+Stack       1 0 1 0
+Heap        1 0 1 0
+
+General     2 0 0 0
+Stack       1 0 0 0
+Heap        1 0 0 0
+```
