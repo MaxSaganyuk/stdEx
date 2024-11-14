@@ -203,10 +203,15 @@ namespace stdEx
 			localThreadStorage = allThreadStorage;
 		}
 
-		static bool stackCheck;
+		static thread_local bool stackCheck;
 
-		static ObjectCounterInfo& GetCorrentStorageAndInfo(ObjectCounterType objType, bool localThread)
+		static ObjectCounterInfo& GetCorrectStorageAndInfo(ObjectCounterType objType, bool localThread)
 		{
+			if (localThread)
+			{
+				UpdateLocalThreadStorage();
+			}
+
 			return GetCorrectInfo(objType, localThread ? localThreadStorage : allThreadStorage);
 		}
 
@@ -231,12 +236,12 @@ namespace stdEx
 
 		static size_t GetCreatedObjAmount(ObjectCounterType objType, bool localThread = false)
 		{
-			return GetCorrentStorageAndInfo(objType, localThread).created;
+			return GetCorrectStorageAndInfo(objType, localThread).created;
 		}
 
 		static size_t GetActiveObjAmount(ObjectCounterType objType, bool localThread = false)
 		{
-			return GetCorrentStorageAndInfo(objType, localThread).active;
+			return GetCorrectStorageAndInfo(objType, localThread).active;
 		}
 
 		ObjectCounter()
@@ -249,8 +254,6 @@ namespace stdEx
 			}
 
 			stackCheck = true;
-
-			UpdateLocalThreadStorage();
 		}
 
 		ObjectCounter(const ObjectCounter&)
@@ -260,7 +263,6 @@ namespace stdEx
 		{
 			stackCheck = false;
 			++allThreadStorage.heapCounter;
-			UpdateLocalThreadStorage();
 			return ::new ObjectCounter(nullptr);
 		}
 
@@ -268,8 +270,6 @@ namespace stdEx
 		{
 			++allThreadStorage.stackCounter.active;
 			--allThreadStorage.heapCounter.active;
-
-			UpdateLocalThreadStorage();
 
 			::delete(pointer);
 		}
@@ -279,19 +279,17 @@ namespace stdEx
 		{
 			--allThreadStorage.generalCounter.active;
 			--allThreadStorage.stackCounter.active;
-
-			UpdateLocalThreadStorage();
 		}
 	};
 
 	template<typename Type>
-        typename ObjectCounter<Type>::ObjectCounterStorage ObjectCounter<Type>::allThreadStorage = { 0, 0, 0 };
+	typename ObjectCounter<Type>::ObjectCounterStorage ObjectCounter<Type>::allThreadStorage = { 0, 0, 0 };
 
 	template<typename Type>
 	typename thread_local ObjectCounter<Type>::ObjectCounterStorage ObjectCounter<Type>::localThreadStorage = { 0, 0, 0 };
 
 	template<typename Type>
-	bool ObjectCounter<Type>::stackCheck = true;
+	bool thread_local ObjectCounter<Type>::stackCheck = true;
 
 #define TrackedClass(className) class className : public stdEx::ObjectCounter<className>
 
