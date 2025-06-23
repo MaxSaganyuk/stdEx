@@ -9,9 +9,15 @@
 #include <optional>
 #endif
 
+#if __cplusplus >= 202002L || _HAS_CXX20
+#include <iostream>
+#include <array>
+#endif
+
 namespace stdEx
 {
 #if __cplusplus >= 202002L || _HAS_CXX20
+
 	namespace _stdEx
 	{
 		template<typename MArray, size_t rank, size_t n>
@@ -26,7 +32,7 @@ namespace stdEx
 		}
 
 		template<typename MArray>
-		constexpr auto GetDimentionExtent()
+		constexpr auto GetDimensionExtent()
 		{
 			constexpr size_t rank = std::rank_v<MArray>;
 			std::array<size_t, rank> extent;
@@ -37,14 +43,14 @@ namespace stdEx
 		}
 
 		template<typename MArray, size_t rank, size_t n>
-		void PrintNDimention(MArray& mArray, std::array<size_t, rank> extent)
+		void PrintNDimension(MArray& mArray, std::array<size_t, rank> extent)
 		{
 			for (size_t i = 0; i < extent[n]; ++i)
 			{
 				if constexpr (n + 1 < rank)
 				{
 					std::cout << '{';
-					PrintNDimention<std::remove_extent_t<MArray>, rank, n + 1>(mArray[i], extent);
+					PrintNDimension<std::remove_extent_t<MArray>, rank, n + 1>(mArray[i], extent);
 					std::cout << '}';
 				}
 				else
@@ -64,9 +70,9 @@ namespace stdEx
 	{
 		using namespace _stdEx;
 
-		constexpr auto extent = GetDimentionExtent<MArray>();
+		constexpr auto extent = GetDimensionExtent<MArray>();
 
-		PrintNDimention<MArray, extent.size(), 0>(mArray, extent);
+		PrintNDimension<MArray, extent.size(), 0>(mArray, extent);
 	}
 #endif
 	template<typename Type>
