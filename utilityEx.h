@@ -95,6 +95,11 @@ namespace stdEx
 				return val;
 			}
 
+			Type& value()
+			{
+				return val;
+			}
+
 			PseudoOptional& operator=(Type&& value)
 			{
 				check = true;
@@ -155,6 +160,12 @@ namespace stdEx
 		}
 
 		operator Type() const
+		{
+			assert(backup && "Backup value is nullptr");
+			return value.has_value() ? value.value() : *backup;
+		}
+
+		operator Type& ()
 		{
 			assert(backup && "Backup value is nullptr");
 			return value.has_value() ? value.value() : *backup;
