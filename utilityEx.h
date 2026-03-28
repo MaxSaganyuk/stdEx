@@ -483,5 +483,142 @@ namespace stdEx
 			return values;
 		}
 	};
+
+	template<typename Type, size_t size>
+	class RingBuffer
+	{
+		constexpr static size_t npos = 0 - 1;
+
+		static_assert(size, "Size cannot be 0");
+		static_assert(size != npos, "Max size_t size is reserved");
+
+		std::array<Type, size> buffer{};
+		size_t frontPoint = npos;
+		size_t backPoint = npos;
+
+		constexpr void IncrementPoint(size_t& pointToIncrement, size_t& otherPoint, bool push)
+		{
+			pointToIncrement = (pointToIncrement + 1) % size;
+
+			if (push && pointToIncrement == otherPoint)
+			{
+				otherPoint = (otherPoint + 1) % size;
+			}
+		}
+
+		constexpr void DecrementPoint(size_t& pointToDecrement, size_t& otherPoint, bool push)
+		{
+			pointToDecrement = pointToDecrement - 1 == npos ? size - 1 : pointToDecrement - 1;
+
+			if (push && pointToDecrement == otherPoint)
+			{
+				otherPoint = otherPoint - 1 == npos ? size - 1 : otherPoint - 1;
+			}
+		}
+
+	public:
+		constexpr void PushBack(const Type& value)
+		{
+			if (frontPoint == npos && backPoint == npos)
+			{
+				frontPoint = backPoint = 0;
+			}
+			else
+			{
+				IncrementPoint(backPoint, frontPoint, true);
+			}
+
+			buffer[backPoint] = value;
+		}
+
+		constexpr void PopBack()
+		{
+			if (frontPoint == backPoint)
+			{
+				frontPoint = backPoint = npos;
+			}
+			else
+			{
+				DecrementPoint(backPoint, frontPoint, false);
+			}
+		}
+
+		constexpr void PushFront(const Type& value)
+		{
+			if (frontPoint == npos && backPoint == npos)
+			{
+				frontPoint = backPoint = 0;
+			}
+			else
+			{
+				DecrementPoint(frontPoint, backPoint, true);
+			}
+
+			buffer[frontPoint] = value;
+		}
+
+		constexpr void PopFront()
+		{
+			if (frontPoint == backPoint)
+			{
+				frontPoint = backPoint = npos;
+			}
+			else
+			{
+				IncrementPoint(frontPoint, backPoint, false);
+			}
+		}
+
+		constexpr Type& GetFront()
+		{
+			if (frontPoint == npos)
+			{
+				throw std::logic_error("Buffer has no data");
+			}
+			else
+			{
+				return buffer[frontPoint];
+			}
+		}
+
+		constexpr Type& GetBack()
+		{
+			if (backPoint == npos)
+			{
+				throw std::logic_error("Buffer has no data");
+			}
+			else
+			{
+				return buffer[backPoint];
+			}
+		}
+
+		constexpr Type& operator[](size_t index)
+		{
+			if (index < GetCurrentSize())
+			{
+				return buffer[(frontPoint + index) % size];
+			}
+			else
+			{
+				throw std::logic_error("Index is beyond current size");
+			}
+		}
+
+		constexpr size_t GetMaxSize()
+		{
+			return size;
+		}
+
+		constexpr size_t GetCurrentSize()
+		{
+			if (backPoint == npos && frontPoint == npos)
+			{
+				return 0;
+			}
+
+			return (backPoint >= frontPoint ? backPoint - frontPoint : size - frontPoint - backPoint) + 1;
+		}
+	};
 }
 #endif
