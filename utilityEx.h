@@ -496,7 +496,7 @@ namespace stdEx
 		size_t frontPoint = npos;
 		size_t backPoint = npos;
 
-		constexpr void IncrementPoint(size_t& pointToIncrement, size_t& otherPoint, bool push)
+		constexpr void IncrementPoint(size_t& pointToIncrement, size_t& otherPoint, bool push) noexcept
 		{
 			pointToIncrement = (pointToIncrement + 1) % size;
 
@@ -506,7 +506,7 @@ namespace stdEx
 			}
 		}
 
-		constexpr void DecrementPoint(size_t& pointToDecrement, size_t& otherPoint, bool push)
+		constexpr void DecrementPoint(size_t& pointToDecrement, size_t& otherPoint, bool push) noexcept
 		{
 			pointToDecrement = pointToDecrement - 1 == npos ? size - 1 : pointToDecrement - 1;
 
@@ -516,6 +516,31 @@ namespace stdEx
 			}
 		}
 
+		template<typename Self>
+		constexpr static decltype(auto) GetEdge(Self& self, size_t point)
+		{
+			if (self.frontPoint == npos && self.backPoint == npos)
+			{
+				throw std::logic_error("Buffer has no data");
+			}
+			else
+			{
+				return self.buffer[point];
+			}
+		}
+
+		template<typename Self>
+		constexpr static decltype(auto) GetValue(Self& self, size_t index)
+		{
+			if (index < self.GetCurrentSize())
+			{
+				return (self.buffer[(self.frontPoint + index) % size]);
+			}
+			else
+			{
+				throw std::logic_error("Index is beyond current size");
+			}
+		}
 	public:
 		constexpr void PushBack(const Type& value)
 		{
@@ -531,7 +556,7 @@ namespace stdEx
 			buffer[backPoint] = value;
 		}
 
-		constexpr void PopBack()
+		constexpr void PopBack() noexcept
 		{
 			if (frontPoint == backPoint)
 			{
@@ -557,7 +582,7 @@ namespace stdEx
 			buffer[frontPoint] = value;
 		}
 
-		constexpr void PopFront()
+		constexpr void PopFront() noexcept
 		{
 			if (frontPoint == backPoint)
 			{
@@ -571,53 +596,47 @@ namespace stdEx
 
 		constexpr Type& GetFront()
 		{
-			if (frontPoint == npos)
-			{
-				throw std::logic_error("Buffer has no data");
-			}
-			else
-			{
-				return buffer[frontPoint];
-			}
+			return GetEdge(*this, frontPoint);
 		}
 
-		constexpr Type& GetBack()
+		constexpr const Type& GetFront() const
 		{
-			if (backPoint == npos)
-			{
-				throw std::logic_error("Buffer has no data");
-			}
-			else
-			{
-				return buffer[backPoint];
-			}
+			return GetEdge(*this, frontPoint);
+		}
+
+		constexpr Type& GetBack() 
+		{
+			return GetEdge(*this, backPoint);
+		}
+
+		constexpr const Type& GetBack() const
+		{
+			return GetEdge(*this, backPoint);
 		}
 
 		constexpr Type& operator[](size_t index)
 		{
-			if (index < GetCurrentSize())
-			{
-				return buffer[(frontPoint + index) % size];
-			}
-			else
-			{
-				throw std::logic_error("Index is beyond current size");
-			}
+			return GetValue(*this, index);
 		}
 
-		constexpr size_t GetMaxSize()
+		constexpr const Type& operator[](size_t index) const
+		{
+			return GetValue(*this, index);
+		}
+
+		constexpr size_t GetMaxSize() const noexcept
 		{
 			return size;
 		}
 
-		constexpr size_t GetCurrentSize()
+		constexpr size_t GetCurrentSize() const noexcept
 		{
 			if (backPoint == npos && frontPoint == npos)
 			{
 				return 0;
 			}
 
-			return (backPoint >= frontPoint ? backPoint - frontPoint : size - frontPoint - backPoint) + 1;
+			return (backPoint >= frontPoint ? backPoint - frontPoint : size - frontPoint + backPoint) + 1;
 		}
 	};
 }
