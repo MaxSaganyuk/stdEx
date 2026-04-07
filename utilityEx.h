@@ -404,7 +404,34 @@ namespace stdEx
 
 			return *iter;
 		}
+
+		void SetupRelationImpl(
+			std::shared_ptr<Element>& firstValue, 
+			std::shared_ptr<Element>& secondValue, 
+			RelationType relationType, 
+			RelationType relationCheck
+		)
+		{
+			bool found = firstValue->relations.find(secondValue) != firstValue->relations.end();
+
+			if (relationType == relationCheck || relationType == RelationType::Bidirectional)
+			{
+				if (!found)
+				{
+					firstValue->relations.insert(secondValue);
+				}
+			}
+			else
+			{
+				if (found)
+				{
+					firstValue->relations.erase(secondValue);
+				}
+			}
+		}
 	public:
+		// Must be called before use. Already added bidirectional relations will not be invalidated,
+		// since there is no way of knowing what relation must be set after invalidation
 		void EnableBidirectionality(bool value = true)
 		{
 			isBidirEnabled = value;
@@ -416,8 +443,9 @@ namespace stdEx
 			AddElementImpl(value);
 		}
 
-		// Links elements, already existent elements do not get re-added
-		void AddElements(const Type& firstValue, const Type& secondValue, RelationType relationType)
+		// Adds and links elements, already existent elements do not get re-added. 
+		// Used to modify existent relations - overrides relations on direction change.
+		void SetupRelations(const Type& firstValue, const Type& secondValue, RelationType relationType)
 		{
 			if (!isBidirEnabled && relationType == RelationType::Bidirectional)
 			{
@@ -427,20 +455,8 @@ namespace stdEx
 			auto leftElement  = AddElementImpl(firstValue);
 			auto rightElement = AddElementImpl(secondValue);
 
-			if (relationType == RelationType::Bidirectional || relationType == RelationType::LeftToRight)
-			{
-				if (isBidirEnabled || rightElement->relations.find(leftElement) == rightElement->relations.end())
-				{
-					leftElement->relations.insert(rightElement);
-				}
-			}
-			if (relationType == RelationType::Bidirectional || relationType == RelationType::RightToLeft)
-			{
-				if (isBidirEnabled || leftElement->relations.find(rightElement) == leftElement->relations.end())
-				{
-					rightElement->relations.insert(leftElement);
-				}
-			}
+			SetupRelationImpl(leftElement, rightElement, relationType, RelationType::LeftToRight);
+			SetupRelationImpl(rightElement, leftElement, relationType, RelationType::RightToLeft);
 		}
 
 		// To maintain speed, remove does not invalidate expired elements
