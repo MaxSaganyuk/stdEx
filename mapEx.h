@@ -2,7 +2,7 @@
 #define MAPEX
 
 #include <map>
-
+#include <vector>
 #include <stdexcept>
 
 namespace stdEx
@@ -13,27 +13,34 @@ namespace stdEx
 		Value defaultValue;
 		bool  defaultValueSet = false;
 
-	public:
-		Value& at(const Key& key)
+		template<typename Self>
+		static decltype(auto) atImpl(Self& self, const Key& key)
 		{
-			// To reduce amount of catches, if default value is not set
-			// will call std::map::at unhandled as usual
+			auto iter = self.find(key);
 
-			if (defaultValueSet)
+			if (iter != self.end())
 			{
-				try
-				{
-					return std::map<Key, Value>::at(key);
-				}
-				catch (std::out_of_range&)
-				{
-					return defaultValue;
-				}
+				return (iter->second);
+			}
+			else if (self.defaultValueSet)
+			{
+				return (self.defaultValue);
 			}
 			else
 			{
-				return std::map<Key, Value>::at(key);
+				throw std::out_of_range("Key does not exist and default value is not set");
 			}
+		}
+
+	public:
+		Value& at(const Key& key)
+		{
+			return atImpl(*this, key);
+		}
+
+		const Value& at(const Key& key) const
+		{
+			return atImpl(*this, key);
 		}
 
 		void SetDefaultValue(const Value& value)
@@ -41,7 +48,6 @@ namespace stdEx
 			defaultValue = value;
 			defaultValueSet = true;
 		}
-
 	};
 
 	template<class Key, class Value, class Compare = std::less<Key>>
