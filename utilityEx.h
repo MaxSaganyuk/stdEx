@@ -473,6 +473,14 @@ namespace stdEx
 			}
 		}
 
+		void EraseAllRelations()
+		{
+			for (auto& element : elements)
+			{
+				element->relations.clear();
+			}
+		}
+
 		// When related values are requested, we invalidate expired elements
 		std::vector<Type> GetValuesRelatedTo(const Type& value)
 		{
