@@ -17,6 +17,10 @@
 #include <array>
 #endif
 
+#if __cplusplus >= 202302L || _HAS_CXX23
+#include <generator>
+#endif
+
 namespace stdEx
 {
 #if __cplusplus >= 202002L || _HAS_CXX20
@@ -498,6 +502,34 @@ namespace stdEx
 
 			return values;
 		}
+
+#if __cplusplus >= 202302L || _HAS_CXX23
+		// When related values are requested, we invalidate expired elements
+		// Passed value must outlive the call - demands l-value despite not mutating input
+		std::generator<Type&> ViewValuesRelatedTo(Type& value)
+		{
+			auto elementIter = elements.find(Element{ value });
+
+			if (elementIter != elements.end())
+			{
+				auto element = *elementIter;
+				auto& relations = element->relations;
+
+				for (auto relationIter = relations.begin(); relationIter != relations.end();)
+				{
+					if (!relationIter->expired())
+					{
+						co_yield relationIter->lock()->value;
+						++relationIter;
+					}
+					else
+					{
+						relationIter = relations.erase(relationIter);
+					}
+				}
+			}
+		}
+#endif
 	};
 
 	template<typename Type, size_t size>
