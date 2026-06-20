@@ -332,7 +332,7 @@ namespace stdEx
 #if __cplusplus >= 202002L || _HAS_CXX20
 	template<typename Type>
 	concept OnlyComparable = requires(Type t) { t < t; };
-	
+
 	template<OnlyComparable Type>
 #else
 	template<typename Type> // Type must support operator<
@@ -384,8 +384,11 @@ namespace stdEx
 
 		struct Element
 		{
+			using RelationsType = std::set<std::weak_ptr<Element>, WeakPtrValueComparator>;
+
 			Type value;
-			std::set<std::weak_ptr<Element>, WeakPtrValueComparator> relations;
+			RelationsType softRelations;
+			RelationsType hardRelations;
 
 			bool operator<(const Element& otherElement) const
 			{
@@ -410,27 +413,34 @@ namespace stdEx
 		}
 
 		void SetupRelationImpl(
-			std::shared_ptr<Element>& firstValue, 
-			std::shared_ptr<Element>& secondValue, 
-			RelationType relationType, 
-			RelationType relationCheck
+			std::shared_ptr<Element>& firstValue,
+			std::shared_ptr<Element>& secondValue,
+			RelationType relationType,
+			RelationType relationCheck,
+			bool hardRelation
 		)
 		{
-			bool found = firstValue->relations.find(secondValue) != firstValue->relations.end();
+			bool softFound = firstValue->softRelations.find(secondValue) != firstValue->softRelations.end();
 
 			if (relationType == relationCheck || relationType == RelationType::Bidirectional)
 			{
-				if (!found)
+				if (hardRelation)
 				{
-					firstValue->relations.insert(secondValue);
+					if (softFound)
+					{
+						firstValue->softRelations.erase(secondValue);
+					}
+
+					firstValue->hardRelations.insert(secondValue);
+				}
+				else if (!softFound)
+				{
+					firstValue->softRelations.insert(secondValue);
 				}
 			}
-			else
+			else if (softFound)
 			{
-				if (found)
-				{
-					firstValue->relations.erase(secondValue);
-				}
+				firstValue->softRelations.erase(secondValue);
 			}
 		}
 	public:
@@ -449,18 +459,18 @@ namespace stdEx
 
 		// Adds and links elements, already existent elements do not get re-added. 
 		// Used to modify existent relations - overrides relations on direction change.
-		void SetupRelations(const Type& firstValue, const Type& secondValue, RelationType relationType)
+		// Hard relations allow for relation to persist on relation deletion until value is deleted
+		void SetupRelations(
+			const Type& firstValue, const Type& secondValue, RelationType relationType, bool hardRelation = false
+		)
 		{
-			if (!isBidirEnabled && relationType == RelationType::Bidirectional)
-			{
-				return;
-			}
+			if (!isBidirEnabled && relationType == RelationType::Bidirectional) return;
 
-			auto leftElement  = AddElementImpl(firstValue);
+			auto leftElement = AddElementImpl(firstValue);
 			auto rightElement = AddElementImpl(secondValue);
 
-			SetupRelationImpl(leftElement, rightElement, relationType, RelationType::LeftToRight);
-			SetupRelationImpl(rightElement, leftElement, relationType, RelationType::RightToLeft);
+			SetupRelationImpl(leftElement, rightElement, relationType, RelationType::LeftToRight, hardRelation);
+			SetupRelationImpl(rightElement, leftElement, relationType, RelationType::RightToLeft, hardRelation);
 		}
 
 		// To maintain speed, remove does not invalidate expired elements
@@ -473,27 +483,19 @@ namespace stdEx
 			}
 		}
 
+		// Note that hard relations are not eliminated with this method
 		void EraseAllRelations()
 		{
 			for (auto& element : elements)
 			{
-				element->relations.clear();
+				element->softRelations.clear();
 			}
 		}
 
 		// When related values are requested, we invalidate expired elements
 		std::vector<Type> GetValuesRelatedTo(const Type& value)
 		{
-			std::vector<Type> values;
-			values.reserve(elements.size());
-
-			auto elementIter = elements.find(Element{ value });
-
-			if (elementIter != elements.end())
-			{
-				auto element = *elementIter;
-				auto& relations = element->relations;
-
+			auto RelationCheck = [](std::vector<Type>& values, Element::RelationsType& relations) {
 				for (auto relationIter = relations.begin(); relationIter != relations.end();)
 				{
 					if (!relationIter->expired())
@@ -506,6 +508,19 @@ namespace stdEx
 						relationIter = relations.erase(relationIter);
 					}
 				}
+			};
+
+			std::vector<Type> values;
+			values.reserve(elements.size());
+
+			auto elementIter = elements.find(Element{ value });
+
+			if (elementIter != elements.end())
+			{
+				auto element = *elementIter;
+
+				RelationCheck(values, element->softRelations);
+				RelationCheck(values, element->hardRelations);
 			}
 
 			return values;
@@ -516,13 +531,7 @@ namespace stdEx
 		// Passed value must outlive the call - demands l-value despite not mutating input
 		std::generator<Type&> ViewValuesRelatedTo(Type& value)
 		{
-			auto elementIter = elements.find(Element{ value });
-
-			if (elementIter != elements.end())
-			{
-				auto element = *elementIter;
-				auto& relations = element->relations;
-
+			auto RelationCheck = [](Element::RelationsType& relations) -> std::generator<Type&> {
 				for (auto relationIter = relations.begin(); relationIter != relations.end();)
 				{
 					if (!relationIter->expired())
@@ -534,6 +543,23 @@ namespace stdEx
 					{
 						relationIter = relations.erase(relationIter);
 					}
+				}
+			};
+
+			auto elementIter = elements.find(Element{ value });
+
+			if (elementIter != elements.end())
+			{
+				auto element = *elementIter;
+
+				for (auto& elementValue : RelationCheck(element->softRelations))
+				{
+					co_yield elementValue;
+				}
+
+				for (auto& elementValue : RelationCheck(element->hardRelations))
+				{
+					co_yield elementValue;
 				}
 			}
 		}
