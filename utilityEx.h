@@ -341,6 +341,9 @@ namespace stdEx
 	{
 		struct Element;
 
+		using HardnessAndRelation    = std::pair<bool, Type>;
+		using HardnessAndRelationRef = std::pair<bool, Type&>;
+
 		class SharedPtrValueComparator
 		{
 		public:
@@ -493,14 +496,14 @@ namespace stdEx
 		}
 
 		// When related values are requested, we invalidate expired elements
-		std::vector<Type> GetValuesRelatedTo(const Type& value)
+		std::vector<HardnessAndRelation> GetValuesRelatedTo(const Type& value)
 		{
-			auto RelationCheck = [](std::vector<Type>& values, Element::RelationsType& relations) {
+			auto RelationCheck = [](std::vector<HardnessAndRelation>& values, Element::RelationsType& relations, bool hard) {
 				for (auto relationIter = relations.begin(); relationIter != relations.end();)
 				{
 					if (!relationIter->expired())
 					{
-						values.push_back(relationIter->lock()->value);
+						values.push_back({ hard, relationIter->lock()->value });
 						++relationIter;
 					}
 					else
@@ -510,7 +513,7 @@ namespace stdEx
 				}
 			};
 
-			std::vector<Type> values;
+			std::vector<HardnessAndRelation> values;
 			values.reserve(elements.size());
 
 			auto elementIter = elements.find(Element{ value });
@@ -519,8 +522,8 @@ namespace stdEx
 			{
 				auto element = *elementIter;
 
-				RelationCheck(values, element->softRelations);
-				RelationCheck(values, element->hardRelations);
+				RelationCheck(values, element->softRelations, false);
+				RelationCheck(values, element->hardRelations, true);
 			}
 
 			return values;
@@ -529,14 +532,14 @@ namespace stdEx
 #if __cplusplus >= 202302L || _HAS_CXX23
 		// When related values are requested, we invalidate expired elements
 		// Passed value must outlive the call - demands l-value despite not mutating input
-		std::generator<Type&> ViewValuesRelatedTo(Type& value)
+		std::generator<HardnessAndRelationRef> ViewValuesRelatedTo(Type& value)
 		{
-			auto RelationCheck = [](Element::RelationsType& relations) -> std::generator<Type&> {
+			auto RelationCheck = [](Element::RelationsType& relations, bool hard) -> std::generator<HardnessAndRelationRef> {
 				for (auto relationIter = relations.begin(); relationIter != relations.end();)
 				{
 					if (!relationIter->expired())
 					{
-						co_yield relationIter->lock()->value;
+						co_yield { hard, relationIter->lock()->value };
 						++relationIter;
 					}
 					else
@@ -552,12 +555,12 @@ namespace stdEx
 			{
 				auto element = *elementIter;
 
-				for (auto& elementValue : RelationCheck(element->softRelations))
+				for (auto&& elementValue : RelationCheck(element->softRelations, false))
 				{
 					co_yield elementValue;
 				}
 
-				for (auto& elementValue : RelationCheck(element->hardRelations))
+				for (auto&& elementValue : RelationCheck(element->hardRelations, true))
 				{
 					co_yield elementValue;
 				}
