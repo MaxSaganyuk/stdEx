@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <memory>
+#include <stdexcept>
 
 #if __cplusplus >= 201703L || _HAS_CXX17
 #include <optional>
@@ -572,14 +573,82 @@ namespace stdEx
 	template<typename Type, size_t size>
 	class RingBuffer
 	{
-		constexpr static size_t npos = 0 - 1;
+		using UnderlyingArray = std::array<Type, size>;
+
+		constexpr static size_t npos = std::numeric_limits<size_t>::max();
 
 		static_assert(size, "Size cannot be 0");
 		static_assert(size != npos, "Max size_t size is reserved");
 
-		std::array<Type, size> buffer{};
+		UnderlyingArray buffer{};
 		size_t frontPoint = npos;
 		size_t backPoint = npos;
+
+		class RingBufferIterImpl
+		{
+		protected:
+			size_t currentPoint{};
+			mutable bool endReached{};
+		public:
+			constexpr RingBufferIterImpl(size_t currentPoint) noexcept
+				: currentPoint(currentPoint) {}
+
+			constexpr bool operator==(const RingBufferIterImpl& otherIter) const noexcept
+			{
+				if (currentPoint == npos) return true;
+
+				if (!endReached)
+				{
+					endReached = currentPoint == otherIter.currentPoint;
+
+					return false;
+				}
+				else
+				{
+					return true;
+				}
+			}
+		};
+
+		class RingBufferIter : public RingBufferIterImpl
+		{
+			UnderlyingArray& buffer;
+		public:
+			constexpr RingBufferIter(size_t currentPoint, UnderlyingArray& buffer) noexcept
+				: RingBufferIterImpl(currentPoint), buffer(buffer) {}
+
+			constexpr Type& operator*() noexcept
+			{
+				return this->buffer[this->currentPoint % size];
+			}
+
+			constexpr RingBufferIter& operator++() noexcept
+			{
+				this->currentPoint = (this->currentPoint + 1) % size;
+
+				return *this;
+			}
+		};
+
+		class ConstRingBufferIter : public RingBufferIterImpl
+		{
+			const UnderlyingArray& buffer;
+		public:
+			constexpr ConstRingBufferIter(size_t currentPoint, const UnderlyingArray& buffer) noexcept
+				: RingBufferIterImpl(currentPoint), buffer(buffer) {}
+
+			constexpr const Type& operator*() const noexcept
+			{
+				return this->buffer[this->currentPoint % size];
+			}
+
+			constexpr ConstRingBufferIter& operator++() noexcept
+			{
+				this->currentPoint = (this->currentPoint + 1) % size;
+
+				return *this;
+			}
+		};
 
 		constexpr void IncrementPoint(size_t& pointToIncrement, size_t& otherPoint, bool push) noexcept
 		{
@@ -626,8 +695,55 @@ namespace stdEx
 				throw std::logic_error("Index is beyond current size");
 			}
 		}
+
+		constexpr void Move(RingBuffer&& otherRB) noexcept
+		{
+			buffer = std::move(otherRB.buffer);
+			frontPoint = otherRB.frontPoint;
+			backPoint = otherRB.backPoint;
+
+			otherRB.frontPoint = otherRB.backPoint = npos;
+		}
 	public:
-		constexpr void PushBack(const Type& value)
+#if __cplusplus >= 202002L || _HAS_CXX20
+		template<typename... Types> requires(std::constructible_from<Type, std::remove_cvref_t<Types>> && ...)
+#else
+		template<typename... Types>
+#endif
+		constexpr RingBuffer(Types&&... values) noexcept
+			: buffer({ std::forward<Types>(values)... })
+		{
+			constexpr size_t valueAmount = sizeof...(values);
+
+			static_assert(valueAmount <= size, "Cannot initialize with size more than ring buffer size");
+
+			if (valueAmount)
+			{
+				frontPoint = 0;
+				backPoint = valueAmount - 1;
+			}
+		}
+
+		constexpr RingBuffer(const RingBuffer&) noexcept = default;
+		constexpr RingBuffer(RingBuffer&& otherRB) noexcept
+		{
+			Move(std::move(otherRB));
+		}
+
+		constexpr RingBuffer& operator=(const RingBuffer&) noexcept = default;
+		constexpr RingBuffer& operator=(RingBuffer&& otherRB) noexcept
+		{
+			Move(std::move(otherRB));
+
+			return *this;
+		}
+
+#if __cplusplus >= 202002L || _HAS_CXX20
+		template<typename PassedType> requires(std::constructible_from<Type, std::remove_cvref_t<PassedType>>)
+#else
+		template<typename PassedType>
+#endif
+		constexpr void PushBack(PassedType&& value)
 		{
 			if (frontPoint == npos && backPoint == npos)
 			{
@@ -638,7 +754,7 @@ namespace stdEx
 				IncrementPoint(backPoint, frontPoint, true);
 			}
 
-			buffer[backPoint] = value;
+			buffer[backPoint] = std::forward<PassedType>(value);
 		}
 
 		constexpr void PopBack() noexcept
@@ -653,7 +769,12 @@ namespace stdEx
 			}
 		}
 
-		constexpr void PushFront(const Type& value)
+#if __cplusplus >= 202002L || _HAS_CXX20
+		template<typename PassedType> requires(std::constructible_from<Type, std::remove_cvref_t<PassedType>>)
+#else
+		template<typename PassedType>
+#endif
+		constexpr void PushFront(PassedType&& value)
 		{
 			if (frontPoint == npos && backPoint == npos)
 			{
@@ -664,7 +785,7 @@ namespace stdEx
 				DecrementPoint(frontPoint, backPoint, true);
 			}
 
-			buffer[frontPoint] = value;
+			buffer[frontPoint] = std::forward<PassedType>(value);
 		}
 
 		constexpr void PopFront() noexcept
@@ -716,12 +837,30 @@ namespace stdEx
 
 		constexpr size_t GetCurrentSize() const noexcept
 		{
-			if (backPoint == npos && frontPoint == npos)
-			{
-				return 0;
-			}
+			if (backPoint == npos && frontPoint == npos) return 0;
 
 			return (backPoint >= frontPoint ? backPoint - frontPoint : size - frontPoint + backPoint) + 1;
+		}
+
+		// Iterators are intended for ranged for only
+		constexpr RingBufferIter begin() noexcept
+		{
+			return { frontPoint, buffer };
+		}
+
+		constexpr RingBufferIter end() noexcept
+		{
+			return { backPoint, buffer };
+		}
+
+		constexpr ConstRingBufferIter begin() const noexcept
+		{
+			return { frontPoint, buffer };
+		}
+
+		constexpr ConstRingBufferIter end() const noexcept
+		{
+			return { backPoint, buffer };
 		}
 	};
 }
