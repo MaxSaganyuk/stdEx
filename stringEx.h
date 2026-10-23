@@ -20,7 +20,7 @@ namespace stdEx
 		bool preferLarger = false;
 #endif
 
-#ifdef FixedStringPreferLarger || FixedStringPreferSmaller
+#if defined(FixedStringPreferLarger) || defined(FixedStringPreferSmaller)
 		return preferLarger ? std::max(FirstBufferSize, SecondBufferSize) : std::min(FirstBufferSize, SecondBufferSize);
 #else
 		// The "Extend". Two string have two null terminators, only one is needed in the resulting one, hence -1
